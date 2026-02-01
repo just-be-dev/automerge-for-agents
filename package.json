@@ -1,0 +1,54 @@
+{
+  "name": "automerge-fs",
+  "version": "0.3.0",
+  "description": "A versionable filesystem for just-bash using Automerge CRDTs",
+  "type": "module",
+  "main": "dist/automerge-fs-v2.js",
+  "types": "dist/automerge-fs-v2.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/automerge-fs-v2.js",
+      "types": "./dist/automerge-fs-v2.d.ts"
+    },
+    "./blobs": {
+      "import": "./dist/blob-stores.js",
+      "types": "./dist/blob-stores.d.ts"
+    },
+    "./v1": {
+      "import": "./dist/automerge-fs.js",
+      "types": "./dist/automerge-fs.d.ts"
+    },
+    "./rpc": {
+      "import": "./dist/rpc-transport.js",
+      "types": "./dist/rpc-transport.d.ts"
+    }
+  },
+  "bin": {
+    "automerge-fsd": "./src/daemon.ts",
+    "amfs": "./src/cli.ts"
+  },
+  "scripts": {
+    "build": "bun build ./src/daemon.ts --outfile=dist/daemon.js --target=bun && bun build ./src/cli.ts --outfile=dist/cli.js --target=bun",
+    "dev": "bun run src/daemon.ts start",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@automerge/automerge": "^3.0.0",
+    "capnweb": "^0.2.0"
+  },
+  "peerDependencies": {
+    "just-bash": "^0.1.0"
+  },
+  "optionalDependencies": {
+    "@automerge/automerge-repo": "^2.0.0",
+    "@automerge/automerge-repo-storage-nodefs": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  },
+  "trustedDependencies": [
+    "@aspect-build/rules_ts"
+  ]
+}
