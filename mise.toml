@@ -1,0 +1,28 @@
+[tools]
+bun = "1.3.6"
+
+[settings]
+experimental = true
+pin = true
+
+[hooks]
+postinstall = "bun install"
+
+[env]
+_.path = "node_modules/.bin"
+
+[tasks.build]
+description = "Build the project"
+run = "bun run build"
+
+[tasks.dev]
+description = "Start development server"
+run = "bun run src/daemon.ts start"
+
+[tasks.test]
+description = "Run tests"
+run = "bun test"
+
+[tasks.typecheck]
+description = "Check TypeScript types"
+run = "tsc --noEmit"

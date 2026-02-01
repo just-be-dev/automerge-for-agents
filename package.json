@@ -50,5 +50,6 @@
   },
   "trustedDependencies": [
     "@aspect-build/rules_ts"
-  ]
+  ],
+  "private": true
 }
