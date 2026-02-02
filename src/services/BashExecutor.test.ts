@@ -52,7 +52,8 @@ describe("SimpleBashExecutor", () => {
     const result = await Effect.runPromise(program.pipe(Effect.provide(runtime)));
 
     expect(result.exitCode).toBe(0);
-    expect(result.stdout.trim()).toBe("/tmp");
+    // macOS resolves /tmp to /private/tmp
+    expect(result.stdout.trim()).toMatch(/^\/(private\/)?tmp$/);
   });
 
   test("handles commands with pipes", async () => {

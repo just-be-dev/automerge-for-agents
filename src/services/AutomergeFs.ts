@@ -203,7 +203,7 @@ export class AutomergeFsMultiDoc {
     const now = Date.now()
     const existing = this.getEntry(normalized)
 
-    this.setEntry(normalized, {
+    const entry: FsEntry = {
       type: "file",
       path: normalized,
       parent: parentPath,
@@ -214,9 +214,21 @@ export class AutomergeFsMultiDoc {
         mtime: now,
         ctime: existing?.metadata.ctime ?? now,
       },
-      content: inlineContent,
-      blobHash,
-    })
+    }
+
+    // Only set content or blobHash if they have values
+    // Automerge doesn't allow undefined values
+    if (inlineContent !== null) {
+      entry.content = inlineContent
+    } else {
+      entry.content = null
+    }
+
+    if (blobHash !== undefined) {
+      entry.blobHash = blobHash
+    }
+
+    this.setEntry(normalized, entry)
 
     this.logOperation("writeFile", normalized)
   }
