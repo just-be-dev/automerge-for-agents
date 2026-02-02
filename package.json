@@ -17,25 +17,24 @@
     "./v1": {
       "import": "./dist/automerge-fs.js",
       "types": "./dist/automerge-fs.d.ts"
-    },
-    "./rpc": {
-      "import": "./dist/rpc-transport.js",
-      "types": "./dist/rpc-transport.d.ts"
     }
   },
   "bin": {
-    "automerge-fsd": "./src/daemon.ts",
-    "amfs": "./src/cli.ts"
+    "automerge-fsd": "./src/daemon/main.ts",
+    "amfs": "./src/cli/main.ts"
   },
   "scripts": {
-    "build": "bun build ./src/daemon.ts --outfile=dist/daemon.js --target=bun && bun build ./src/cli.ts --outfile=dist/cli.js --target=bun",
-    "dev": "bun run src/daemon.ts start",
+    "build": "bun build ./src/daemon/main.ts --outfile=dist/daemon.js --target=bun && bun build ./src/cli/main.ts --outfile=dist/cli.js --target=bun",
+    "dev": "bun run src/daemon/main.ts start",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@automerge/automerge": "^3.0.0",
-    "capnweb": "^0.2.0"
+    "@effect/cli": "^0.73.1",
+    "@effect/platform": "^0.94.2",
+    "@effect/platform-node": "^0.104.1",
+    "effect": "^3.11.0"
   },
   "peerDependencies": {
     "just-bash": "^2.7.0"

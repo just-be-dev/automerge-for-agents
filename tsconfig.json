@@ -1,0 +1,35 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "lib": ["ESNext"],
+    "types": ["bun-types"],
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": false,
+    "outDir": "./dist"
+  },
+  "include": [
+    "src/**/*.ts",
+    "automerge-fs-v2.d.ts",
+    "blob-stores.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "daemon.ts",
+    "cli.ts",
+    "rpc-transport.ts"
+  ]
+}

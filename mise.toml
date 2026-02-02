@@ -17,7 +17,7 @@ run = "bun run build"
 
 [tasks.dev]
 description = "Start development server"
-run = "bun run src/daemon.ts start"
+run = "bun run src/daemon/main.ts start"
 
 [tasks.test]
 description = "Run tests"
