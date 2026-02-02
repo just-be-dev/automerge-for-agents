@@ -1,0 +1,15 @@
+{
+  "settings": {
+    "jsx-a11y": {
+      "rules": {}
+    }
+  },
+  "rules": {
+    "correctness": "warn",
+    "suspicious": "warn",
+    "restriction": "warn",
+    "style": "warn",
+    "complexity": "warn",
+    "nursery": "off"
+  }
+}

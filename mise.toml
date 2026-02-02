@@ -26,3 +26,11 @@ run = "bun test"
 [tasks.typecheck]
 description = "Check TypeScript types"
 run = "tsc --noEmit"
+
+[tasks.lint]
+description = "Lint code with oxlint"
+run = "oxlint"
+
+[tasks."lint:fix"]
+description = "Lint code with oxlint and fix issues"
+run = "oxlint --fix"

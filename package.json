@@ -38,14 +38,15 @@
     "capnweb": "^0.2.0"
   },
   "peerDependencies": {
-    "just-bash": "^0.1.0"
+    "just-bash": "^2.7.0"
   },
   "optionalDependencies": {
     "@automerge/automerge-repo": "^2.0.0",
     "@automerge/automerge-repo-storage-nodefs": "^2.0.0"
   },
   "devDependencies": {
-    "@types/bun": "latest",
+    "@types/bun": "^1.3.8",
+    "oxlint": "^1.42.0",
     "typescript": "^5.0.0"
   },
   "trustedDependencies": [
