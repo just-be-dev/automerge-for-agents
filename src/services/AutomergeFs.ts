@@ -115,7 +115,7 @@ export class AutomergeFsMultiDoc {
 
   private getEntry(path: string): FsEntry | null {
     const normalized = this.normalizePath(path)
-    const doc = this.handle.docSync()
+    const doc = this.handle.doc()
     return doc?.entries?.[normalized] ?? null
   }
 
@@ -290,7 +290,7 @@ export class AutomergeFsMultiDoc {
       throw new Error(`ENOTDIR: not a directory: ${path}`)
     }
 
-    const doc = this.handle.docSync()
+    const doc = this.handle.doc()
     const entries: Array<{ name: string; isFile: boolean; isDirectory: boolean; isSymbolicLink: boolean }> = []
 
     for (const [, entryData] of Object.entries(doc?.entries ?? {})) {
@@ -377,7 +377,7 @@ export class AutomergeFsMultiDoc {
   // ===========================================================================
 
   getRootHeads(): unknown[] {
-    const doc = this.handle.docSync()
+    const doc = this.handle.doc()
     if (!doc) return []
     return Automerge.getHeads(doc)
   }
@@ -401,7 +401,7 @@ export class AutomergeFsMultiDoc {
   get rootHandle() {
     return {
       doc: async () => {
-        const doc = this.handle.docSync()
+        const doc = this.handle.doc()
         return doc ? { ...doc, operationLog: this.operationLog } : null
       },
     }
