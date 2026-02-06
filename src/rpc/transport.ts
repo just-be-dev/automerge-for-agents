@@ -4,7 +4,8 @@
  * Provides a simple JSON-over-newline transport for Unix domain sockets.
  */
 
-import { Effect, Ref, Schema } from "effect"
+import { Effect, Ref, Schema, Scope } from "effect"
+import type * as Socket from "@effect/platform/Socket"
 import { TransportError } from "../errors"
 import type { AmfsRouter } from "./router"
 import { RpcRequestSchema, type RpcRequest, type RpcResponse } from "./schema"
@@ -95,6 +96,71 @@ export const makeServerConnection = (
           }
         }),
     }
+  })
+
+/**
+ * Handles a connection from an @effect/platform SocketServer.
+ * Processes JSON-over-newline RPC requests through the router.
+ */
+export const handleConnection = (
+  socket: Socket.Socket,
+  router: AmfsRouter
+): Effect.Effect<void, Socket.SocketError, Scope.Scope> =>
+  Effect.gen(function* () {
+    const write = yield* socket.writer
+    const bufferRef = yield* Ref.make("")
+
+    const processLine = (line: string) =>
+      Effect.gen(function* () {
+        let request: RpcRequest
+        try {
+          const parsed = JSON.parse(line)
+          const decoded = Schema.decodeUnknownSync(RpcRequestSchema)(parsed)
+          request = decoded
+        } catch {
+          return
+        }
+
+        const { id, method, params } = request
+
+        const result = yield* router.handle(method, params).pipe(
+          Effect.map((result) => ({ id, result })),
+          Effect.catchAll((error) =>
+            Effect.succeed({
+              id,
+              error: {
+                message: error instanceof Error ? error.message : String(error),
+              },
+            })
+          )
+        )
+
+        const response: RpcResponse = result
+        yield* write(JSON.stringify(response) + "\n")
+      })
+
+    yield* socket.run((data: Uint8Array) =>
+      Effect.gen(function* () {
+        const str = new TextDecoder().decode(data)
+        const currentBuffer = yield* Ref.get(bufferRef)
+        const newBuffer = currentBuffer + str
+
+        const lines = newBuffer.split("\n")
+        yield* Ref.set(bufferRef, lines.pop() || "")
+
+        for (const line of lines) {
+          if (line.trim()) {
+            yield* processLine(line).pipe(
+              Effect.catchAll((e) =>
+                Effect.sync(() =>
+                  console.error("Error processing request:", e)
+                )
+              )
+            )
+          }
+        }
+      })
+    )
   })
 
 // =============================================================================

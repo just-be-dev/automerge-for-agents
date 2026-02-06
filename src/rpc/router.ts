@@ -23,6 +23,8 @@ import type {
   SnapshotParamsType,
   HistoryParamsType,
   GetFileAtParamsType,
+  DiffParamsType,
+  GetFileHeadsParamsType,
 } from "./schema"
 
 // =============================================================================
@@ -161,6 +163,16 @@ export const makeRouter = (ctx: RouterContext): AmfsRouter => {
     getFileAt: (params) => {
       const { path, heads } = params as GetFileAtParamsType
       return ctx.fsService.getFileAt(path, [...heads])
+    },
+
+    diff: (params) => {
+      const { path, fromHeads, toHeads } = params as DiffParamsType
+      return ctx.fsService.diff(path, [...fromHeads], [...toHeads])
+    },
+
+    getFileHeads: (params) => {
+      const { path } = params as GetFileHeadsParamsType
+      return ctx.fsService.getFileHeads(path)
     },
 
     // Service Control

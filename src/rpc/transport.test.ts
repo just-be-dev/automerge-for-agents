@@ -62,8 +62,8 @@ describe("RPC Transport Message Format", () => {
 
     expect(lines.length).toBe(2);
 
-    const parsed1 = JSON.parse(lines[0]);
-    const parsed2 = JSON.parse(lines[1]);
+    const parsed1 = JSON.parse(lines[0] as string);
+    const parsed2 = JSON.parse(lines[1] as string);
 
     expect(parsed1.id).toBe(1);
     expect(parsed2.id).toBe(2);
@@ -95,7 +95,7 @@ describe("RPC Transport Message Format", () => {
     buffer = lines.pop() || "";
 
     expect(lines.length).toBe(1); // Now we have a complete line
-    const parsed = JSON.parse(lines[0]);
+    const parsed = JSON.parse(lines[0] as string);
     expect(parsed.id).toBe(123);
   });
 

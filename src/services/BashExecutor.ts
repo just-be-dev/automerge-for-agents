@@ -6,8 +6,10 @@
  */
 
 import { Context, Effect, Layer } from "effect"
+import { Bash, type IFileSystem } from "just-bash"
 import { BashExecutionError } from "../errors"
 import type { BashResult } from "../rpc/schema"
+import { AutomergeFsInstance, type AutomergeFsMultiDoc } from "./AutomergeFs"
 
 // =============================================================================
 // Service Interface
@@ -26,13 +28,8 @@ export class BashExecutor extends Context.Tag("BashExecutor")<
 >() {}
 
 // =============================================================================
-// Live Implementation
+// Service Factory
 // =============================================================================
-
-export interface BashExecutorConfig {
-  // The fs instance is needed for just-bash integration
-  fs: unknown
-}
 
 interface BashInstance {
   exec(command: string, options?: { cwd?: string }): Promise<{
@@ -43,24 +40,8 @@ interface BashInstance {
 }
 
 /**
- * Creates the BashExecutor service layer.
- *
- * Uses just-bash for command execution with the AutomergeFs
- * as the backing filesystem.
- */
-export const BashExecutorLive = (config: BashExecutorConfig) =>
-  Layer.effect(
-    BashExecutor,
-    Effect.promise(async () => {
-      const { Bash } = await import("just-bash") as { Bash: new (opts: { fs: unknown }) => BashInstance }
-      const bash = new Bash({ fs: config.fs })
-      return makeBashExecutorServiceFromInstance(bash)
-    })
-  )
-
-/**
  * Creates a BashExecutor service from an existing Bash instance.
- * Useful for direct instantiation in the daemon.
+ * Used by BashExecutorLive layer in Layer.ts.
  */
 export const makeBashExecutorServiceFromInstance = (bash: BashInstance): BashExecutorService => ({
   exec: (command, options) =>
@@ -83,6 +64,86 @@ export const makeBashExecutorServiceFromInstance = (bash: BashInstance): BashExe
       },
     }),
 })
+
+// =============================================================================
+// Live Layer
+// =============================================================================
+
+/**
+ * Adapts AutomergeFsMultiDoc to the IFileSystem interface expected by just-bash.
+ */
+function adaptToFileSystem(fs: AutomergeFsMultiDoc): IFileSystem {
+  return {
+    readFile: async (path: string) => {
+      const bytes = await fs.readFile(path)
+      return new TextDecoder().decode(bytes)
+    },
+    readFileBuffer: (path: string) => fs.readFile(path),
+    writeFile: (path: string, content: string | Uint8Array) =>
+      fs.writeFile(path, content),
+    appendFile: (path: string, content: string) =>
+      fs.appendFile(path, content),
+    exists: (path: string) => fs.exists(path),
+    stat: async (path: string) => {
+      const s = await fs.stat(path)
+      return {
+        isFile: s.isFile,
+        isDirectory: s.isDirectory,
+        isSymbolicLink: s.isSymbolicLink,
+        mode: s.mode,
+        size: s.size,
+        mtime: s.mtime,
+      }
+    },
+    mkdir: (path: string, options?: { recursive?: boolean }) =>
+      fs.mkdir(path, options),
+    readdir: async (path: string) => {
+      const entries = await fs.readdir(path)
+      return entries.map((e) => e.name)
+    },
+    readdirWithFileTypes: async (path: string) => {
+      const entries = await fs.readdir(path)
+      return entries
+    },
+    rm: (path: string, options?: { recursive?: boolean }) =>
+      fs.rm(path, options),
+    cp: (src: string, dest: string, options?: { recursive?: boolean }) =>
+      fs.cp(src, dest, options),
+    mv: (src: string, dest: string) => fs.mv(src, dest),
+    resolvePath: (base: string, path: string) => fs.resolvePath(base, path),
+    getAllPaths: () => fs.getAllPaths(),
+    chmod: (path: string, mode: number) => fs.chmod(path, mode),
+    symlink: (_target: string, _linkPath: string) => fs.symlink(),
+    link: (_existingPath: string, _newPath: string) => fs.link(),
+    readlink: (_path: string) => fs.readlink(),
+    lstat: async (path: string) => {
+      const s = await fs.lstat(path)
+      return {
+        isFile: s.isFile,
+        isDirectory: s.isDirectory,
+        isSymbolicLink: s.isSymbolicLink,
+        mode: s.mode,
+        size: s.size,
+        mtime: s.mtime,
+      }
+    },
+    realpath: (path: string) => fs.realpath(path),
+    utimes: (path: string, atime: Date, mtime: Date) =>
+      fs.utimes(path, atime.getTime(), mtime.getTime()),
+  }
+}
+
+/**
+ * BashExecutorLive — reads AutomergeFsInstance, creates Bash + wraps
+ */
+export const BashExecutorLive = Layer.effect(
+  BashExecutor,
+  Effect.gen(function* () {
+    const fs = yield* AutomergeFsInstance
+    const bash = new Bash({ fs: adaptToFileSystem(fs) })
+    return makeBashExecutorServiceFromInstance(bash)
+  })
+)
 
 // =============================================================================
 // Simple Implementation (without just-bash)

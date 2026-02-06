@@ -53,6 +53,14 @@ export interface AmfsClient {
     path: string,
     heads: string[]
   ) => Effect.Effect<string, TransportError>
+  diff: (
+    path: string,
+    fromHeads: string[],
+    toHeads: string[]
+  ) => Effect.Effect<unknown[], TransportError>
+  getFileHeads: (
+    path: string
+  ) => Effect.Effect<string[], TransportError>
 
   // Service Control
   status: () => Effect.Effect<schema.ServiceStatus, TransportError>
@@ -122,6 +130,12 @@ const makeClient = (conn: ClientConnection): AmfsClient => ({
 
   getFileAt: (path, heads) =>
     makeRpcCall<string>(conn, "getFileAt", { path, heads }),
+
+  diff: (path, fromHeads, toHeads) =>
+    makeRpcCall<unknown[]>(conn, "diff", { path, fromHeads, toHeads }),
+
+  getFileHeads: (path) =>
+    makeRpcCall<string[]>(conn, "getFileHeads", { path }),
 
   status: () =>
     makeRpcCall<schema.ServiceStatus>(conn, "status", {}),
