@@ -4,8 +4,11 @@
  * Provides blob storage backends for Automerge filesystem.
  */
 
+import { Context, Effect, Layer } from "effect"
 import { readdir, unlink, mkdir } from "node:fs/promises"
+import { mkdirSync } from "node:fs"
 import { join } from "node:path"
+import { DaemonConfig } from "../daemon/DaemonConfig"
 
 export interface BlobStore {
   get(hash: string): Promise<Uint8Array | null>
@@ -86,3 +89,18 @@ export class FileSystemBlobStore implements BlobStore {
     return hashes
   }
 }
+
+export class BlobStoreTag extends Context.Tag("BlobStore")<BlobStoreTag, BlobStore>() {}
+
+/**
+ * BlobStoreLive — reads DaemonConfig, creates FileSystemBlobStore
+ */
+export const BlobStoreLive = Layer.effect(
+  BlobStoreTag,
+  Effect.gen(function* () {
+    const config = yield* DaemonConfig
+    const dir = join(config.dataDir, "blobs")
+    mkdirSync(dir, { recursive: true })
+    return new FileSystemBlobStore(dir)
+  })
+)

@@ -161,6 +161,12 @@ export const GetFileAtParams = Schema.Struct({
 })
 export const StatusParams = Schema.Struct({})
 export const ShutdownParams = Schema.Struct({})
+export const DiffParams = Schema.Struct({
+  path: Schema.String,
+  fromHeads: Schema.Array(Schema.String),
+  toHeads: Schema.Array(Schema.String),
+})
+export const GetFileHeadsParams = Schema.Struct({ path: Schema.String })
 
 // =============================================================================
 // Method Parameter Types
@@ -182,3 +188,5 @@ export type HistoryParamsType = typeof HistoryParams.Type
 export type GetFileAtParamsType = typeof GetFileAtParams.Type
 export type StatusParamsType = typeof StatusParams.Type
 export type ShutdownParamsType = typeof ShutdownParams.Type
+export type DiffParamsType = typeof DiffParams.Type
+export type GetFileHeadsParamsType = typeof GetFileHeadsParams.Type

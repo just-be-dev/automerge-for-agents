@@ -9,89 +9,63 @@
  *   bun run src/daemon/main.ts start [--socket /tmp/amfs.sock] [--data ~/.automerge-fs]
  */
 
-import { Runtime } from "effect"
+import { Effect, Layer } from "effect"
 import { existsSync, unlinkSync } from "fs"
-import { initializeDaemonServices, type DaemonConfig } from "./Layer"
+import { NodeRuntime } from "@effect/platform-node"
+import * as SocketServer from "@effect/platform/SocketServer"
+import * as NodeSocketServer from "@effect/platform-node/NodeSocketServer"
+import { DaemonConfig, DaemonLive } from "./Layer"
+import { AutomergeFs } from "../services/AutomergeFs"
+import { BashExecutor } from "../services/BashExecutor"
 import { makeRouter } from "../rpc/router"
-import { makeServerConnection, type ServerConnection } from "../rpc/transport"
+import { handleConnection } from "../rpc/transport"
+
+// =============================================================================
+// Effect Helpers
+// =============================================================================
+
+const cleanupSocket = (socketPath: string) =>
+  Effect.sync(() => {
+    if (existsSync(socketPath)) {
+      unlinkSync(socketPath)
+    }
+  }).pipe(Effect.ignore)
 
 // =============================================================================
 // Daemon Server
 // =============================================================================
 
-async function startDaemon(config: DaemonConfig) {
+function startDaemon(config: { socketPath: string; dataDir: string }) {
   const { socketPath, dataDir } = config
 
-  // Clean up stale socket
-  if (existsSync(socketPath)) {
-    try {
-      unlinkSync(socketPath)
-    } catch {}
-  }
+  // Build layers
+  const ConfigLayer = Layer.succeed(DaemonConfig, { socketPath, dataDir })
+  const ServerLayer = NodeSocketServer.layer({ path: socketPath })
+  const fullLayer = Layer.merge(
+    DaemonLive.pipe(Layer.provide(ConfigLayer)),
+    ServerLayer,
+  )
 
-  console.log("Initializing Automerge filesystem...")
+  const program = Effect.gen(function* () {
+    yield* cleanupSocket(socketPath)
+    yield* Effect.log("Initializing Automerge filesystem...")
 
-  // Initialize all services
-  const services = await initializeDaemonServices(config)
+    // Extract services and build router
+    const fsService = yield* AutomergeFs
+    const bashService = yield* BashExecutor
 
-  // Create the RPC router
-  const router = makeRouter({
-    fsService: services.fsService,
-    bashService: services.bashService,
-    dataDir: config.dataDir,
-    startTime: Date.now(),
-  })
+    const router = makeRouter({
+      fsService,
+      bashService,
+      dataDir,
+      startTime: Date.now(),
+    })
 
-  // Track active connections
-  const connections = new Map<unknown, ServerConnection>()
-  const runtime = Runtime.defaultRuntime
+    // Start platform socket server
+    const server = yield* SocketServer.SocketServer
 
-  console.log(`Starting Effect RPC server on unix://${socketPath}`)
-
-  // Start Unix socket server
-  const server = Bun.listen({
-    unix: socketPath,
-    socket: {
-      open(socket) {
-        console.log("Client connected")
-
-        // Create server connection handler
-        const connection = Runtime.runSync(runtime)(
-          makeServerConnection(socket, router)
-        )
-
-        connections.set(socket, connection)
-      },
-
-      data(socket, data) {
-        const connection = connections.get(socket)
-        if (connection) {
-          Runtime.runSync(runtime)(connection.onData(data))
-        }
-      },
-
-      close(socket) {
-        console.log("Client disconnected")
-        const connection = connections.get(socket)
-        if (connection) {
-          Runtime.runSync(runtime)(connection.onClose())
-          connections.delete(socket)
-        }
-      },
-
-      error(socket, error) {
-        console.error("Socket error:", error)
-        const connection = connections.get(socket)
-        if (connection) {
-          Runtime.runSync(runtime)(connection.onClose(error))
-          connections.delete(socket)
-        }
-      },
-    },
-  })
-
-  // Print startup banner
-  console.log(`
+    yield* Effect.log(`Starting Effect RPC server on unix://${socketPath}`)
+    yield* Effect.log(`
 ┌──────────────────────────────────────────────────────────────┐
 │                    automerge-fsd                             │
 │                Effect RPC + Bun Edition                      │
@@ -103,20 +77,23 @@ async function startDaemon(config: DaemonConfig) {
 └──────────────────────────────────────────────────────────────┘
 `)
 
-  // Graceful shutdown
-  const shutdown = () => {
-    console.log("\nShutting down...")
-    server.stop()
-    try {
-      unlinkSync(socketPath)
-    } catch {}
-    process.exit(0)
-  }
+    // Run forever, handling connections (each connection gets its own scope)
+    yield* server.run((socket) =>
+      Effect.scoped(handleConnection(socket, router)).pipe(
+        Effect.catchAll((error) =>
+          Effect.log(`Connection error: ${error}`)
+        )
+      )
+    )
+  }).pipe(
+    // Clean up socket file on shutdown (interruption, error, or normal exit)
+    Effect.ensuring(cleanupSocket(socketPath)),
+    Effect.provide(fullLayer),
+  )
 
-  process.on("SIGINT", shutdown)
-  process.on("SIGTERM", shutdown)
-
-  return server
+  // runMain handles SIGINT/SIGTERM by interrupting the fiber,
+  // which tears down layers and runs the ensuring cleanup
+  NodeRuntime.runMain(program)
 }
 
 // =============================================================================
@@ -136,7 +113,7 @@ const dataDir = getArg("--data") ?? `${Bun.env.HOME}/.automerge-fs`
 
 switch (command) {
   case "start":
-    await startDaemon({ socketPath, dataDir })
+    startDaemon({ socketPath, dataDir })
     break
 
   default:

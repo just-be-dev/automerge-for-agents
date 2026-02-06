@@ -263,6 +263,39 @@ const historyCommand = Command.make("history", {
   ),
 );
 
+// diff <path> <fromHead> <toHead>
+const diffCommand = Command.make("diff", {
+  args: Args.all([
+    Args.text({ name: "path" }),
+    Args.text({ name: "fromHead" }),
+    Args.text({ name: "toHead" }),
+  ]),
+}).pipe(
+  Command.withHandler((parsed) =>
+    withClient((client) =>
+      Effect.gen(function* () {
+        const [path, fromHead, toHead] = parsed.args;
+        const result = yield* client.diff(path, [fromHead], [toHead]);
+        output({ ok: true, patches: result });
+      }),
+    ),
+  ),
+);
+
+// heads <path>
+const headsCommand = Command.make("heads", {
+  args: Args.text({ name: "path" }),
+}).pipe(
+  Command.withHandler((parsed) =>
+    withClient((client) =>
+      Effect.gen(function* () {
+        const result = yield* client.getFileHeads(parsed.args);
+        output({ ok: true, heads: result });
+      }),
+    ),
+  ),
+);
+
 // status
 const statusCommand = Command.make("status").pipe(
   Command.withHandler(() =>
@@ -309,6 +342,8 @@ const cli = Command.make("amfs").pipe(
     bashCommand,
     snapshotCommand,
     historyCommand,
+    diffCommand,
+    headsCommand,
     statusCommand,
     shutdownCommand,
   ]),

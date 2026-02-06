@@ -8,10 +8,9 @@ import {
   BashExecutionError,
   RpcError,
   InitializationError,
-  FileSystemErrors,
-  ConnectionErrors,
-  BashErrors,
-  RpcErrors,
+  type FileSystemError,
+  type NetworkError,
+  type ExecutionError,
 } from "./errors";
 
 describe("Error Types", () => {
@@ -21,24 +20,24 @@ describe("Error Types", () => {
     expect(error.path).toBe("/test/file.txt");
   });
 
-  test("FileReadError creates with path and message", () => {
+  test("FileReadError creates with path and cause", () => {
     const error = new FileReadError({
       path: "/test/file.txt",
-      message: "Permission denied",
+      cause: "Permission denied",
     });
     expect(error._tag).toBe("FileReadError");
     expect(error.path).toBe("/test/file.txt");
-    expect(error.message).toBe("Permission denied");
+    expect(error.cause).toBe("Permission denied");
   });
 
-  test("FileWriteError creates with path and message", () => {
+  test("FileWriteError creates with path and cause", () => {
     const error = new FileWriteError({
       path: "/test/file.txt",
-      message: "Disk full",
+      cause: "Disk full",
     });
     expect(error._tag).toBe("FileWriteError");
     expect(error.path).toBe("/test/file.txt");
-    expect(error.message).toBe("Disk full");
+    expect(error.cause).toBe("Disk full");
   });
 
   test("DirectoryNotFoundError creates with correct properties", () => {
@@ -47,12 +46,12 @@ describe("Error Types", () => {
     expect(error.path).toBe("/test/dir");
   });
 
-  test("ConnectionClosedError creates with message", () => {
+  test("ConnectionClosedError creates with reason", () => {
     const error = new ConnectionClosedError({
-      message: "Socket closed unexpectedly",
+      reason: "Socket closed unexpectedly",
     });
     expect(error._tag).toBe("ConnectionClosedError");
-    expect(error.message).toBe("Socket closed unexpectedly");
+    expect(error.reason).toBe("Socket closed unexpectedly");
   });
 
   test("BashExecutionError creates with command and exitCode", () => {
@@ -67,30 +66,33 @@ describe("Error Types", () => {
     expect(error.stderr).toBe("Directory not found");
   });
 
-  test("RpcError creates with message", () => {
-    const error = new RpcError({ message: "Invalid method" });
+  test("RpcError creates with method and cause", () => {
+    const error = new RpcError({ method: "read", cause: "Invalid method" });
     expect(error._tag).toBe("RpcError");
-    expect(error.message).toBe("Invalid method");
+    expect(error.method).toBe("read");
+    expect(error.cause).toBe("Invalid method");
   });
 
-  test("InitializationError creates with message", () => {
+  test("InitializationError creates with component and cause", () => {
     const error = new InitializationError({
-      message: "Failed to start daemon",
+      component: "daemon",
+      cause: "Failed to start daemon",
     });
     expect(error._tag).toBe("InitializationError");
-    expect(error.message).toBe("Failed to start daemon");
+    expect(error.component).toBe("daemon");
+    expect(error.cause).toBe("Failed to start daemon");
   });
 });
 
 describe("Error Union Types", () => {
-  test("FileSystemErrors includes all filesystem errors", () => {
+  test("FileSystemError includes all filesystem errors", () => {
     const fileNotFound = new FileNotFoundError({ path: "/test" });
-    const fileRead = new FileReadError({ path: "/test", message: "error" });
-    const fileWrite = new FileWriteError({ path: "/test", message: "error" });
+    const fileRead = new FileReadError({ path: "/test", cause: "error" });
+    const fileWrite = new FileWriteError({ path: "/test", cause: "error" });
     const dirNotFound = new DirectoryNotFoundError({ path: "/test" });
 
     // Type assertion checks - these compile if unions are correct
-    const _errors: FileSystemErrors[] = [
+    const _errors: FileSystemError[] = [
       fileNotFound,
       fileRead,
       fileWrite,
@@ -99,28 +101,28 @@ describe("Error Union Types", () => {
     expect(_errors.length).toBe(4);
   });
 
-  test("ConnectionErrors includes connection-related errors", () => {
-    const connectionClosed = new ConnectionClosedError({ message: "closed" });
+  test("NetworkError includes connection-related errors", () => {
+    const connectionClosed = new ConnectionClosedError({ reason: "closed" });
 
-    const _errors: ConnectionErrors[] = [connectionClosed];
+    const _errors: NetworkError[] = [connectionClosed];
     expect(_errors.length).toBe(1);
   });
 
-  test("BashErrors includes bash execution errors", () => {
+  test("ExecutionError includes bash execution errors", () => {
     const bashError = new BashExecutionError({
       command: "ls",
       exitCode: 1,
       stderr: "error",
     });
 
-    const _errors: BashErrors[] = [bashError];
+    const _errors: ExecutionError[] = [bashError];
     expect(_errors.length).toBe(1);
   });
 
-  test("RpcErrors includes RPC-related errors", () => {
-    const rpcError = new RpcError({ message: "error" });
+  test("RpcError has correct fields", () => {
+    const rpcError = new RpcError({ method: "read", cause: "error" });
 
-    const _errors: RpcErrors[] = [rpcError];
-    expect(_errors.length).toBe(1);
+    expect(rpcError._tag).toBe("RpcError");
+    expect(rpcError.method).toBe("read");
   });
 });
