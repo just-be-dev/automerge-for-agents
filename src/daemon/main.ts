@@ -116,17 +116,28 @@ switch (command) {
     startDaemon({ socketPath, dataDir })
     break
 
+  case "mcp": {
+    // stdout is reserved for MCP JSON-RPC, redirect logs to stderr
+    console.log = console.error
+
+    const { startMcpServer } = await import("../mcp/server")
+    startMcpServer({ dataDir }) // NodeRuntime.runMain handles lifecycle
+    break
+  }
+
   default:
     console.log(`
 automerge-fsd - Automerge Filesystem Daemon
 
 Usage:
-  bun run src/daemon/main.ts start [options]
+  bun run src/daemon/main.ts <command> [options]
+
+Commands:
+  start    Start the daemon with Effect RPC over Unix socket
+  mcp      Start as an MCP server (JSON-RPC over stdio)
 
 Options:
   --socket PATH    Unix socket path (default: /tmp/amfs.sock)
   --data PATH      Data directory (default: ~/.automerge-fs)
-
-Effect RPC over Unix socket for typed, efficient communication.
 `)
 }
