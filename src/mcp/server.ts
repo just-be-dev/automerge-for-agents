@@ -28,9 +28,13 @@ function formatResult(result: unknown): string {
 }
 
 function toFailure(error: unknown): Effect.Effect<never, string> {
-  const message =
-    error instanceof Error ? error.message : String(error)
-  return Effect.fail(message)
+  if (error instanceof Error) {
+    // Data.TaggedError instances have empty .message — use String() for a
+    // richer representation that includes the tag name and structured fields.
+    const message = error.message || String(error)
+    return Effect.fail(message)
+  }
+  return Effect.fail(String(error))
 }
 
 // =============================================================================

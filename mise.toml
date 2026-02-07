@@ -1,5 +1,10 @@
 [tools]
+1password = "2.32.1"
 bun = "1.3.6"
+fnox = "1.11.0"
+
+[plugins]
+fnox-env = "https://github.com/jdx/mise-env-fnox"
 
 [settings]
 experimental = true
@@ -9,6 +14,7 @@ pin = true
 postinstall = "bun install"
 
 [env]
+_.fnox-env = { tools = true }
 _.path = "node_modules/.bin"
 
 [tasks.build]
@@ -34,3 +40,35 @@ run = "oxlint"
 [tasks."lint:fix"]
 description = "Lint code with oxlint and fix issues"
 run = "oxlint --fix"
+
+[tasks."demo:agent"]
+description = "Run the agent harness demo with Anthropic"
+run = "bun run src/examples/agent-harness.ts"
+
+[tasks."debug"]
+description = "Debug the Automerge filesystem"
+run = "bun run src/cli/debug.ts"
+
+[tasks."debug:tree"]
+description = "Show filesystem tree"
+run = "bun run src/cli/debug.ts tree"
+
+[tasks."debug:ls"]
+description = "List directory contents"
+run = "bun run src/cli/debug.ts ls"
+
+[tasks."debug:heads"]
+description = "Show current Automerge heads"
+run = "bun run src/cli/debug.ts heads"
+
+[tasks."debug:dump"]
+description = "Dump contents of all files in the filesystem"
+run = "bun run src/cli/debug.ts dump"
+
+[tasks."debug:history"]
+description = "Show file change history (requires path argument)"
+run = "bun run src/cli/debug.ts history"
+
+[tasks."history"]
+description = "View file history in TUI"
+run = "bun run src/cli/history-viewer.ts"
