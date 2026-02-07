@@ -1,0 +1,5 @@
+[providers."onepass"]
+type = "1password"
+
+[secrets]
+ANTHROPIC_API_KEY = { provider = "onepass", value = "op://Private/AI Creds/anthropic token" }

@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test"
-import { Effect, Exit } from "effect"
+import { Effect, Exit, Layer } from "effect"
 import { createHandlers } from "./server"
 import { AutomergeToolkit } from "./tools"
 import type { AutomergeFsService } from "../services/AutomergeFs"
@@ -7,6 +7,7 @@ import type { BashExecutorService } from "../services/BashExecutor"
 import {
   FileNotFoundError,
   FileWriteError,
+  DirectoryCreateError,
   BashExecutionError,
 } from "../errors"
 
@@ -348,5 +349,78 @@ describe("MCP server tools", () => {
       "stat",
       "write_file",
     ])
+  })
+})
+
+// =============================================================================
+// Full Toolkit Flow Tests (toLayer → resolve → handle)
+// =============================================================================
+
+describe("Toolkit resolution flow", () => {
+  const makeHandlersLayer = (
+    fsOverrides: Partial<AutomergeFsService> = {},
+    bashOverrides: Partial<BashExecutorService> = {},
+  ) =>
+    AutomergeToolkit.toLayer(
+      Effect.gen(function* () {
+        return createHandlers(
+          mockFsService(fsOverrides),
+          mockBashService(bashOverrides),
+        )
+      }),
+    )
+
+  test("resolving toolkit as Effect and calling handle works", async () => {
+    const layer = makeHandlersLayer()
+
+    const program = Effect.gen(function* () {
+      // AutomergeToolkit is an Effect<WithHandler, never, HandlersFor<...>>
+      // Yielding it resolves the handlers from the context
+      const toolkit = yield* AutomergeToolkit
+      const result = yield* toolkit.handle("read_file", { path: "/test.txt" })
+      return result
+    }).pipe(Effect.provide(layer))
+
+    const result = await Effect.runPromise(program)
+    expect(result.isFailure).toBe(false)
+    expect(result.result).toBe("contents of /test.txt")
+  })
+
+  test("toolkit handle returns failure with informative message", async () => {
+    const layer = makeHandlersLayer({
+      mkdir: (path) =>
+        Effect.fail(new DirectoryCreateError({ path, cause: new Error(`ENOENT: no such directory: ${path}`) })),
+    })
+
+    const program = Effect.gen(function* () {
+      const toolkit = yield* AutomergeToolkit
+      const result = yield* toolkit.handle("create_directory", { path: "/deep/nested" })
+      return result
+    }).pipe(Effect.provide(layer))
+
+    const result = await Effect.runPromise(program)
+    expect(result.isFailure).toBe(true)
+    // After the toFailure fix, the result should contain useful error info
+    expect(result.result).not.toBe("")
+    expect(typeof result.result).toBe("string")
+  })
+
+  test("create_directory defaults recursive to false", async () => {
+    let capturedRecursive: boolean | undefined
+    const layer = makeHandlersLayer({
+      mkdir: (_path, opts) => {
+        capturedRecursive = opts?.recursive
+        return Effect.void
+      },
+    })
+
+    const program = Effect.gen(function* () {
+      const toolkit = yield* AutomergeToolkit
+      // Simulate what the LLM sends — no recursive field
+      return yield* toolkit.handle("create_directory", { path: "/test" })
+    }).pipe(Effect.provide(layer))
+
+    await Effect.runPromise(program)
+    expect(capturedRecursive).toBe(false)
   })
 })
