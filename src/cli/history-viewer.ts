@@ -4,11 +4,14 @@
  * Interactive TUI for browsing Automerge file history
  *
  * Usage:
- *   bun run src/cli/history-viewer.ts <path>
+ *   bun run src/cli/history-viewer.ts [path]
+ *
+ * If no path is provided, a file selection TUI will be shown.
  *
  * Controls:
  *   j/k or arrow keys — navigate history
  *   d — toggle diff view
+ *   b — back to file selection (when no path was provided)
  *   q — quit
  */
 
@@ -28,13 +31,16 @@ import { createTwoFilesPatch } from "diff"
 
 const filePathArg = process.argv[2]
 
-if (!filePathArg) {
-  console.error("Usage: bun run src/cli/history-viewer.ts <path>")
-  process.exit(1)
-  throw new Error("unreachable")
-}
+// Helper to ensure renderer cleanup completes
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
-const filePath: string = filePathArg
+// Helper to clear terminal completely
+const clearTerminal = () => {
+  // Clear screen and move cursor to top-left
+  process.stdout.write("\x1b[2J\x1b[0f")
+  // Also clear scrollback buffer
+  process.stdout.write("\x1b[3J")
+}
 
 interface HistoryEntry {
   hash: string
@@ -44,11 +50,112 @@ interface HistoryEntry {
   message: string | null
 }
 
+async function selectFile(fsInstance: AutomergeFsMultiDoc): Promise<string | null> {
+  // Get all files from the filesystem
+  const allPaths = fsInstance.getAllPaths()
+  const files: string[] = []
+
+  for (const path of allPaths) {
+    try {
+      const stat = await fsInstance.stat(path)
+      if (stat.isFile) {
+        files.push(path)
+      }
+    } catch {
+      // Skip entries we can't stat
+      continue
+    }
+  }
+
+  if (files.length === 0) {
+    console.log("No files found in the filesystem")
+    return null
+  }
+
+  // Sort files alphabetically
+  files.sort()
+
+  const renderer = await createCliRenderer({
+    exitOnCtrlC: true,
+    useAlternateScreen: true,
+  })
+
+  const root = new BoxRenderable(renderer, {
+    id: "root",
+    width: renderer.terminalWidth,
+    height: renderer.terminalHeight,
+    flexDirection: "column",
+  })
+  renderer.root.add(root)
+
+  const title = new TextRenderable(renderer, {
+    id: "title",
+    content: " Select a file to view history ",
+    height: 1,
+  })
+  root.add(title)
+
+  const fileBox = new BoxRenderable(renderer, {
+    id: "file-box",
+    flexGrow: 1,
+    border: true,
+    borderStyle: "single",
+    borderColor: "#888888",
+    flexDirection: "column",
+  })
+
+  const selectOptions = files.map((file) => ({
+    name: file,
+    description: "",
+    value: file,
+  }))
+
+  const fileSelect = new SelectRenderable(renderer, {
+    id: "file-select",
+    options: selectOptions,
+    selectedIndex: 0,
+    flexGrow: 1,
+  })
+  fileSelect.focusable = true
+  fileBox.add(fileSelect)
+  root.add(fileBox)
+
+  const statusBar = new TextRenderable(renderer, {
+    id: "status-bar",
+    content: "  [q]uit  [enter] select  [j/k] navigate",
+    height: 1,
+  })
+  root.add(statusBar)
+
+  return new Promise(async (resolve) => {
+    renderer.keyInput.on("keypress", async (key) => {
+      if (key.name === "q") {
+        renderer.destroy()
+        clearTerminal()
+        await delay(100) // Allow cleanup to complete
+        resolve(null)
+      }
+      if (key.name === "return") {
+        const selectedFile = fileSelect.getSelectedOption()?.value as string
+        renderer.destroy()
+        clearTerminal()
+        await delay(100) // Allow cleanup to complete
+        resolve(selectedFile)
+      }
+    })
+
+    renderer.start()
+    fileSelect.focus()
+  })
+}
+
 async function startTUI(
   fsInstance: AutomergeFsMultiDoc,
+  filePath: string,
   history: HistoryEntry[],
-  initialContent: string
-) {
+  initialContent: string,
+  allowBack: boolean = false
+): Promise<"back" | "quit"> {
   const contentCache = new Map<string, string>()
   let diffMode = false
 
@@ -141,9 +248,12 @@ async function startTUI(
   root.add(contentBox)
 
   // Status bar
+  const baseStatusContent = allowBack
+    ? "  [q]uit  [b]ack  [d]iff view  [j/k] navigate"
+    : "  [q]uit  [d]iff view  [j/k] navigate"
   const statusBar = new TextRenderable(renderer, {
     id: "status-bar",
-    content: "  [q]uit  [d]iff view  [j/k] navigate",
+    content: baseStatusContent,
     height: 1,
     width: renderer.terminalWidth,
   })
@@ -206,43 +316,84 @@ async function startTUI(
     updateContentPanel()
   })
 
-  renderer.keyInput.on("keypress", (key) => {
-    if (key.name === "q") {
-      renderer.destroy()
-      process.exit(0)
-    }
-    if (key.name === "d") {
-      diffMode = !diffMode
-      statusBar.content = diffMode
-        ? "  [q]uit  [d]iff view (ON)  [j/k] navigate"
-        : "  [q]uit  [d]iff view  [j/k] navigate"
-      updateContentPanel()
-    }
-  })
+  return new Promise(async (resolve) => {
+    renderer.keyInput.on("keypress", async (key) => {
+      if (key.name === "q") {
+        renderer.destroy()
+        clearTerminal()
+        await delay(100) // Allow cleanup to complete
+        resolve("quit")
+      }
+      if (key.name === "b" && allowBack) {
+        renderer.destroy()
+        clearTerminal()
+        await delay(100) // Allow cleanup to complete
+        resolve("back")
+      }
+      if (key.name === "d") {
+        diffMode = !diffMode
+        const backPart = allowBack ? "  [b]ack" : ""
+        statusBar.content = diffMode
+          ? `  [q]uit${backPart}  [d]iff view (ON)  [j/k] navigate`
+          : baseStatusContent
+        updateContentPanel()
+      }
+    })
 
-  renderer.start()
-  historySelect.focus()
+    renderer.start()
+    historySelect.focus()
+  })
 }
 
 // Effect program to load data and launch TUI
 const program = Effect.gen(function* () {
   const fsInstance = yield* AutomergeFsInstance
-  const history = yield* Effect.promise(() => fsInstance.getFileHistory(filePath))
 
-  if (history.length === 0) {
-    console.log("No history available for", filePath)
-    process.exit(0)
+  // Determine if we're in interactive file selection mode
+  const interactiveMode = !filePathArg
+
+  // Main loop for file selection mode
+  while (true) {
+    // If no file path provided (or in loop), show file selection TUI
+    let filePath = filePathArg
+    if (!filePath) {
+      const selectedFile = yield* Effect.promise(() => selectFile(fsInstance))
+      if (!selectedFile) {
+        console.log("No file selected")
+        process.exit(0)
+      }
+      filePath = selectedFile
+    }
+
+    const history = yield* Effect.promise(() => fsInstance.getFileHistory(filePath))
+
+    if (history.length === 0) {
+      console.log("No history available for", filePath)
+      if (!interactiveMode) {
+        process.exit(0)
+      }
+      continue // In interactive mode, go back to file selection
+    }
+
+    // Newest first
+    history.reverse()
+
+    const initialContent = yield* Effect.promise(() =>
+      fsInstance.getFileAt(filePath, [history[0]!.hash])
+    )
+
+    // Launch TUI (non-Effect, takes over the terminal)
+    const result = yield* Effect.promise(() =>
+      startTUI(fsInstance, filePath, history, initialContent, interactiveMode)
+    )
+
+    // If user pressed 'q' or if we're not in interactive mode, exit
+    if (result === "quit" || !interactiveMode) {
+      process.exit(0)
+    }
+
+    // If user pressed 'b', loop continues to show file selection again
   }
-
-  // Newest first
-  history.reverse()
-
-  const initialContent = yield* Effect.promise(() =>
-    fsInstance.getFileAt(filePath, [history[0]!.hash])
-  )
-
-  // Launch TUI (non-Effect, takes over the terminal)
-  yield* Effect.promise(() => startTUI(fsInstance, history, initialContent))
 })
 
 const ConfigLayer = Layer.succeed(DaemonConfig, {
