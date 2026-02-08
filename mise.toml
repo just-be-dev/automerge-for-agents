@@ -14,7 +14,6 @@ pin = true
 postinstall = "bun install"
 
 [env]
-_.fnox-env = { tools = true }
 _.path = "node_modules/.bin"
 
 [tasks.build]
@@ -44,6 +43,7 @@ run = "oxlint --fix"
 [tasks."demo:agent"]
 description = "Run the agent harness demo with Anthropic"
 run = "bun run src/examples/agent-harness.ts"
+env._.fnox-env = { tools = true }
 
 [tasks."debug"]
 description = "Debug the Automerge filesystem"
